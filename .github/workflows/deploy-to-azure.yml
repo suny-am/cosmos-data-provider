@@ -1,0 +1,43 @@
+name: Deploy DotNet project to Azure Function App
+
+on:
+  push:
+    branches:
+      - main
+env:
+  AZURE_FUNCTIONAPP_NAME: "cosmos-data-provider"
+  AZURE_FUNCTIONAPP_PACKAGE_PATH: "./CosmosDataProvider" 
+  DOTNET_VERSION: "8.0.x" 
+
+jobs:
+  build-and-deploy:
+    runs-on: windows-latest
+    environment: dev
+    steps:
+      - name: "Checkout GitHub Action"
+        uses: actions/checkout@v4
+
+      - name: Setup DotNet ${{ env.DOTNET_VERSION }} Environment
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: ${{ env.DOTNET_VERSION }}
+
+      - name: "Initialize Submodules"
+        run: |
+            git submodule update --init --recursive
+
+      - name: "Resolve Project Dependencies Using Dotnet"
+        shell: pwsh
+        run: |
+          pushd './${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}'
+          dotnet build --configuration Release --property:OutputPath=./output
+          popd
+
+      - name: "Run Azure Functions Action"
+        uses: Azure/functions-action@v1
+        id: fa
+        with:
+          slot-name: "stage"
+          app-name: "cosmos-data-provider"
+          package: "${{ env.AZURE_FUNCTIONAPP_PACKAGE_PATH }}/output"
+          publish-profile: ${{ secrets.AZURE_FUNCTIONAPP_PUBLISH_PROFILE }}
